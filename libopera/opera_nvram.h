@@ -1,8 +1,9 @@
 #ifndef OPERA_NVRAM_H_INCLUDED
 #define OPERA_NVRAM_H_INCLUDED
 
-#define NVRAM_SIZE (32 * 1024)
+#include "boolean.h"
 
-void opera_nvram_init(void);
+bool opera_nvram_initialized(void *buf, const int bufsize);
+void opera_nvram_init(void *buf, const int bufsize);
 
 #endif

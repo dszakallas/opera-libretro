@@ -25,12 +25,27 @@
  * - Will be used as a fallback for any missing entries in
  *   frontend language definition */
 
-static struct retro_core_option_definition option_defs_us[] =
+static struct retro_core_option_v2_category option_cats_us[] =
+  {
+    { "system",   "System",   NULL },
+    { "video",    "Video",    NULL },
+    { "audio",    "Audio",    NULL },
+    { "input",    "Input",    NULL },
+    { "advanced", "Advanced", NULL },
+    { NULL, NULL, NULL },
+  };
+
+static struct retro_core_option_v2_definition option_defs_us_v2[] =
   {
     {
       "opera_bios",
       "BIOS (rom1)",
-      "Select which official system BIOS (hardware revision) to use when performing emulation. Only files present in RetroArch's system directory are listed.",
+      NULL,
+      "Select system BIOS."
+      " Only ROMS present in the system directory are listed."
+      " Changes take affect at core start/restart.",
+      NULL,
+      "system",
       {
         { NULL, NULL }, /* This is set dynamically */
       },
@@ -39,7 +54,12 @@ static struct retro_core_option_definition option_defs_us[] =
     {
       "opera_font",
       "Font (rom2)",
-      "Select which official 'font rom' to use when performing emulation. Required by some Japanese games, otherwise optional. Only files present in RetroArch's system directory are listed.",
+      NULL,
+      "Select 'font rom'. Required by some Japanese games, otherwise optional."
+      " Only ROMs present in the system directory are listed."
+      " Changes take affect at core start/restart.",
+      NULL,
+      "system",
       {
         { NULL, NULL }, /* This is set dynamically */
       },
@@ -48,8 +68,17 @@ static struct retro_core_option_definition option_defs_us[] =
     {
       "opera_cpu_overclock",
       "CPU Overclock",
-      "Increase clock speed of the emulated 3DO's 12.5MHz ARM60 CPU. Dramatically improves frame rates in many games (e.g. The Need For Speed), but increases performance requirements and in some cases has no effect (or may cause glitches).",
+      NULL,
+      "Increase clock speed of the emulated 3DO's 12.5MHz ARM60 CPU."
+      " Dramatically improves frame rates in many games, but increases performance requirements and in some cases has no effect (or may cause glitches).",
+      NULL,
+      "advanced",
       {
+        { "0.5x ( 6.25Mhz)", NULL },
+        { "0.6x ( 7.50Mhz)", NULL },
+        { "0.7x ( 8.75Mhz)", NULL },
+        { "0.8x (10.00Mhz)", NULL },
+        { "0.9x (11.25Mhz)", NULL },
         { "1.0x (12.50Mhz)", NULL },
         { "1.1x (13.75Mhz)", NULL },
         { "1.2x (15.00Mhz)", NULL },
@@ -57,18 +86,94 @@ static struct retro_core_option_definition option_defs_us[] =
         { "1.6x (20.00Mhz)", NULL },
         { "1.8x (22.50Mhz)", NULL },
         { "2.0x (25.00Mhz)", NULL },
+        { "3.0x (37.50Mhz)", NULL },
+        { "4.0x (50.00Mhz)", NULL },
         { NULL, NULL },
       },
       "1.0x (12.50Mhz)"
     },
     {
+      "opera_mem_capacity",
+      "Memory Capacity",
+      NULL,
+      "Select the amount of DRAM and VRAM the system has."
+      " Only useful for homebrew and non-stock values may cause issues with some official software."
+      " Changes take affect at core start/restart."
+      " !EXPERIMENTAL!",
+      NULL,
+      "advanced",
+      {
+        { "21", "2MB DRAM; 1MB VRAM (stock)" },
+        { "22", "2MB DRAM; 2MB VRAM" },
+        { "41", "4MB DRAM; 1MB VRAM" },
+        { "42", "4MB DRAM; 2MB VRAM" },
+        { "81", "8MB DRAM; 1MB VRAM" },
+        { "82", "8MB DRAM; 2MB VRAM" },
+        { "E2", "14MB DRAM; 2MB VRAM" },
+        { "F1", "15MB DRAM; 1MB VRAM" },
+        { NULL, NULL },
+      },
+      "21"
+    },
+    {
+      "opera_random_seed",
+      "Random Number Generator Seed",
+      NULL,
+      "Select the initial seed for the emulated 3DO random number generators."
+      " Fixed seeds provide repeatable behavior for testing."
+      " Changes take effect after fully reinitializing the core.",
+      NULL,
+      "advanced",
+      {
+        { "random",    "Random (time-based)" },
+        { "0x00000000", NULL },
+        { "0x00000001", NULL },
+        { "0xdeadbeef", NULL },
+        { "0xcafebabe", NULL },
+        { "0xfeedface", NULL },
+        { "0xbaadf00d", NULL },
+        { "0x8badf00d", NULL },
+        { "0xdeadc0de", NULL },
+        { "0xc001d00d", NULL },
+        { "0x0badf00d", NULL },
+        { "0x74726170", NULL },
+        { "0x65786974", NULL },
+        { NULL, NULL },
+      },
+      "random"
+    },
+    {
+      "opera_cd_speed",
+      "CD Speed",
+      NULL,
+      "Select the effective CD-ROM read speed."
+      " Warning: can expose timing issues in some titles. Particularly above 16x.",
+      NULL,
+      "system",
+      {
+        { "unbounded", NULL },
+        { "1x",  " 1x - ~150KB/s" },
+        { "2x",  " 2x - ~300KB/s (stock)" },
+        { "4x",  " 4x - ~600KB/s" },
+        { "8x",  " 8x - ~1200KB/s" },
+        { "16x", "16x - 2400KB/s" },
+        { "24x", "24x - 3600KB/s" },
+        { "32x", "32x - 4800KB/s" },
+        { NULL, NULL },
+      },
+      "unbounded"
+    },
+    {
       "opera_region",
-      "Mode",
+      "Region / Mode",
+      NULL,
       "Select the resolution and field rate. NOTE: some EU games require a EU ROM.",
+      NULL,
+      "system",
       {
         { "ntsc", "NTSC 320x240@60" },
         { "pal1", "PAL1 320x288@50" },
-        { "pal2", "PAL2 352x288@50" },
+        { "pal2", "PAL2 384x288@50" },
         { NULL, NULL }
       },
       "ntsc"
@@ -76,13 +181,319 @@ static struct retro_core_option_definition option_defs_us[] =
     {
       "opera_vdlp_pixel_format",
       "VDLP Pixel Format",
-      "Select the pixel format to request from the runtime and convert to from the internal 16bpp format.",
+      NULL,
+      "Select the pixel format to request from the runtime and convert to from the internal 16bpp format."
+      " Changes take affect at core start.",
+      NULL,
+      "video",
       {
         { "0RGB1555", NULL },
         { "RGB565",   NULL },
         { "XRGB8888", NULL }
       },
-      "XRGB8888"
+      "RGB565"
+    },
+    {
+      "opera_vdlp_bypass_clut",
+      "VDLP Bypass CLUT",
+      NULL,
+      "Force 3DO VDLP to bypass the game's CLUT (color lookup table). May result in incorrect colors but faster rendering.",
+      NULL,
+      "video",
+      {
+        { "disabled", NULL },
+        { "enabled",  NULL },
+        { NULL, NULL }
+      },
+      "disabled"
+    },
+    {
+      "opera_high_resolution",
+      "HiRes CEL Rendering",
+      NULL,
+      "Enabling this option causes CELs to be rendered at 2x the resolution into a 2x output framebuffer, increasing the fidelity of 3D models. Will not affect 2D games. Has a significant performance impact.",
+      NULL,
+      "video",
+      {
+        { "disabled", NULL },
+        { "enabled",  NULL },
+        { NULL, NULL },
+      },
+      "disabled"
+    },
+    {
+      "opera_madam_matrix_engine",
+      "MADAM Matrix Engine",
+      NULL,
+      "'MADAM' is the 3DO's graphics accelerator. It contains a custom maths co-processor, used by the 3DO's CPU to offload matrix operations. This corresponds to running in 'Hardware' - but the 3DO could also utilise a built-in ARM 'Software' version of the MADAM matrix engine. 'Hardware' mode is the default, but it has been observed that some games run faster when forcing 'Software' mode."
+      " Changes take affect at core start/restart.",
+      NULL,
+      "advanced",
+      {
+        { "hardware", "Hardware" },
+        { "software", "Software" },
+        { NULL, NULL },
+      },
+      "hardware"
+    },
+    {
+      "opera_swi_hle",
+      "OperaOS SWI HLE",
+      NULL,
+      "3DO games are built on top of Portfolio OS. Opera has high level emulation of certain OS functions. This HLE may improve performance in on certain games.",
+      NULL,
+      "advanced",
+      {
+        { "disabled", NULL },
+        { "enabled",  NULL },
+        { NULL, NULL }
+      },
+      "disabled"
+    },
+#if THREADED_DSP
+    {
+      "opera_dsp_threaded",
+      "Threaded DSP",
+      NULL,
+      "Run the DSP (audio processor) on a separate CPU thread."
+      " Improves performance on multi-core systems."
+      " !EXPERIMENTAL!",
+      NULL,
+      "audio",
+      {
+        { "disabled", NULL },
+        { "enabled",  NULL },
+        { NULL, NULL },
+      },
+      "disabled"
+    },
+#endif
+    {
+      "opera_nvram_storage",
+      "NVRAM Storage",
+      NULL,
+      "Selects whether NVRAM saves should be created per-game or as a single NVRAM file shared between all games.",
+      NULL,
+      "system",
+      {
+        { "per game", "Per Game" },
+        { "shared",   "Shared" },
+        { NULL, NULL },
+      },
+      "per game"
+    },
+    {
+      "opera_nvram_version",
+      "NVRAM Version",
+      NULL,
+      "Select the NVRAM version.",
+      NULL,
+      "system",
+      {
+        { "0", NULL },
+        { "1", NULL },
+        { "2", NULL },
+        { "3", NULL },
+        { "4", NULL },
+        { "5", NULL },
+        { "6", NULL },
+        { "7", NULL },
+        { "8", NULL },
+        { "9", NULL },
+        { NULL, NULL },
+      },
+      "0"
+    },
+    {
+      "opera_active_devices",
+      "Active Input Devices",
+      NULL,
+      "Sets the maximum number of emulated input devices. Certain games, particularly when using >16x CDROM speed and have more than 1 emulated controller, causes content to ignore gamepad input or crash. Setting 'Active Input Devices' to 1 can be workaround for this issue on some titles.",
+      NULL,
+      "input",
+      {
+        { "0", NULL },
+        { "1", NULL },
+        { "2", NULL },
+        { "3", NULL },
+        { "4", NULL },
+        { "5", NULL },
+        { "6", NULL },
+        { "7", NULL },
+        { "8", NULL },
+        { NULL, NULL },
+      },
+      "1"
+    },
+    {
+      "opera_hide_lightgun_crosshairs",
+      "Hide Lightgun Crosshairs",
+      NULL,
+      "Hides lightgun crosshairs for all players.",
+      NULL,
+      "input",
+      {
+        { "disabled", NULL },
+        { "enabled", NULL },
+        { NULL, NULL },
+      },
+      "disabled"
+    },
+    {
+      "opera_kprint",
+      "Debug Output",
+      NULL,
+      "Print 3DO debug port output to stderr. Only really useful to 3DO homebrew developers.",
+      NULL,
+      "advanced",
+      {
+        { "disabled", NULL },
+        { "enabled",  NULL },
+        { NULL, NULL },
+      },
+      "disabled"
+    },
+    { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
+  };
+
+static struct retro_core_options_v2 core_options_us = {
+  option_cats_us,
+  option_defs_us_v2
+};
+
+static struct retro_core_option_definition option_defs_us[] =
+  {
+    {
+      "opera_bios",
+      "BIOS (rom1)",
+      "Select system BIOS."
+      " Only ROMS present in the system directory are listed."
+      " Changes take affect at core start/restart.",
+      {
+        { NULL, NULL }, /* This is set dynamically */
+      },
+      NULL
+    },
+    {
+      "opera_font",
+      "Font (rom2)",
+      "Select 'font rom'. Required by some Japanese games, otherwise optional."
+      " Only ROMs present in the system directory are listed."
+      " Changes take affect at core start/restart.",
+      {
+        { NULL, NULL }, /* This is set dynamically */
+      },
+      NULL
+    },
+    {
+      "opera_cpu_overclock",
+      "CPU Overclock",
+      "Increase clock speed of the emulated 3DO's 12.5MHz ARM60 CPU."
+      " Dramatically improves frame rates in many games, but increases performance requirements and in some cases has no effect (or may cause glitches).",
+      {
+        { "0.5x ( 6.25Mhz)", NULL },
+        { "0.6x ( 7.50Mhz)", NULL },
+        { "0.7x ( 8.75Mhz)", NULL },
+        { "0.9x (11.25Mhz)", NULL },
+        { "0.8x (10.00Mhz)", NULL },
+        { "1.0x (12.50Mhz)", NULL },
+        { "1.1x (13.75Mhz)", NULL },
+        { "1.2x (15.00Mhz)", NULL },
+        { "1.5x (18.75Mhz)", NULL },
+        { "1.6x (20.00Mhz)", NULL },
+        { "1.8x (22.50Mhz)", NULL },
+        { "2.0x (25.00Mhz)", NULL },
+        { "3.0x (37.50Mhz)", NULL },
+        { "4.0x (50.00Mhz)", NULL },
+        { NULL, NULL },
+      },
+      "1.0x (12.50Mhz)"
+    },
+    {
+      "opera_mem_capacity",
+      "Memory Capacity",
+      "Select the amount of DRAM and VRAM the system has."
+      " Only useful for homebrew and non-stock values may cause issues with some official software."
+      " Changes take affect at core start/restart."
+      " !EXPERIMENTAL!",
+      {
+        { "21", "2MB DRAM; 1MB VRAM (stock)" },
+        { "22", "2MB DRAM; 2MB VRAM" },
+        { "41", "4MB DRAM; 1MB VRAM" },
+        { "42", "4MB DRAM; 2MB VRAM" },
+        { "81", "8MB DRAM; 1MB VRAM" },
+        { "82", "8MB DRAM; 2MB VRAM" },
+        { "E2", "14MB DRAM; 2MB VRAM" },
+        { "F1", "15MB DRAM; 1MB VRAM" },
+        { NULL, NULL },
+      },
+      "21"
+    },
+    {
+      "opera_random_seed",
+      "Random Number Generator Seed",
+      "Select the initial seed for the emulated 3DO random number generators."
+      " Fixed seeds provide repeatable behavior for testing."
+      " Changes take effect after fully reinitializing the core.",
+      {
+        { "random",     "Random (time-based)" },
+        { "0x00000000", NULL },
+        { "0x00000001", NULL },
+        { "0xdeadbeef", NULL },
+        { "0xcafebabe", NULL },
+        { "0xfeedface", NULL },
+        { "0xbaadf00d", NULL },
+        { "0x8badf00d", NULL },
+        { "0xdeadc0de", NULL },
+        { "0xc001d00d", NULL },
+        { "0x0badf00d", NULL },
+        { "0x74726170", NULL },
+        { "0x65786974", NULL },
+        { NULL, NULL },
+      },
+      "random"
+    },
+    {
+      "opera_cd_speed",
+      "CD Speed",
+      "Select the effective CD-ROM read speed."
+      " Warning: can expose timing issues in some titles. Particularly above 16x.",
+      {
+        { "unbounded", NULL },
+        { "1x",  " 1x - ~150KB/s" },
+        { "2x",  " 2x - ~300KB/s (stock)" },
+        { "4x",  " 4x - ~600KB/s" },
+        { "8x",  " 8x - ~1200KB/s" },
+        { "16x", "16x - 2400KB/s" },
+        { "24x", "24x - 3600KB/s" },
+        { "32x", "32x - 4800KB/s" },
+        { NULL, NULL },
+      },
+      "unbounded"
+    },
+    {
+      "opera_region",
+      "Region / Mode",
+      "Select the resolution and field rate. NOTE: some EU games require a EU ROM.",
+      {
+        { "ntsc", "NTSC 320x240@60" },
+        { "pal1", "PAL1 320x288@50" },
+        { "pal2", "PAL2 384x288@50" },
+        { NULL, NULL }
+      },
+      "ntsc"
+    },
+    {
+      "opera_vdlp_pixel_format",
+      "VDLP Pixel Format",
+      "Select the pixel format to request from the runtime and convert to from the internal 16bpp format."
+      " Changes take affect at core start.",
+      {
+        { "0RGB1555", NULL },
+        { "RGB565",   NULL },
+        { "XRGB8888", NULL }
+      },
+      "RGB565"
     },
     {
       "opera_vdlp_bypass_clut",
@@ -109,7 +520,8 @@ static struct retro_core_option_definition option_defs_us[] =
     {
       "opera_madam_matrix_engine",
       "MADAM Matrix Engine",
-      "'MADAM' is the 3DO's graphics accelerator. It contains a custom maths co-processor, used by the 3DO's CPU to offload matrix operations. This corresponds to running in 'Hardware' - but the 3DO could also utilise a built-in ARM 'Software' version of the MADAM matrix engine. 'Hardware' mode is the default, but it has been observed that some games run faster when forcing 'Software' mode (e.g. The Need For Speed).",
+      "'MADAM' is the 3DO's graphics accelerator. It contains a custom maths co-processor, used by the 3DO's CPU to offload matrix operations. This corresponds to running in 'Hardware' - but the 3DO could also utilise a built-in ARM 'Software' version of the MADAM matrix engine. 'Hardware' mode is the default, but it has been observed that some games run faster when forcing 'Software' mode."
+      " Changes take affect at core start/restart.",
       {
         { "hardware", "Hardware" },
         { "software", "Software" },
@@ -132,7 +544,9 @@ static struct retro_core_option_definition option_defs_us[] =
     {
       "opera_dsp_threaded",
       "Threaded DSP",
-      "Run the DSP (audio processor) on a separate CPU thread. Improves performance on multi-core systems. !EXPERIMENTAL!",
+      "Run the DSP (audio processor) on a separate CPU thread."
+      " Improves performance on multi-core systems."
+      " !EXPERIMENTAL!",
       {
         { "disabled", NULL },
         { "enabled",  NULL },
@@ -174,7 +588,7 @@ static struct retro_core_option_definition option_defs_us[] =
     {
       "opera_active_devices",
       "Active Input Devices",
-      "There exists a bug (perhaps in Opera itself, but possibly in certain games) where having more than 1 emulated controller causes content to ignore gamepad input. Setting 'Active Input Devices' to 1 provides a workaround for this issue.",
+      "Sets the maximum number of emulated input devices. There exists a bug (perhaps in Opera itself, but possibly in certain games) where having more than 1 emulated controller causes content to ignore gamepad input. Setting 'Active Input Devices' to 1 provides a workaround for this issue.",
       {
         { "0", NULL },
         { "1", NULL },
@@ -190,56 +604,12 @@ static struct retro_core_option_definition option_defs_us[] =
       "1"
     },
     {
-      "opera_hack_timing_1",
-      "Timing Hack 1 (Crash 'n Burn)",
-      "This must be enabled for correct operation of the game 'Crash 'n Burn'.",
+      "opera_hide_lightgun_crosshairs",
+      "Hide Lightgun Crosshairs",
+      "Hides lightgun crosshairs for all players.",
       {
         { "disabled", NULL },
-        { "enabled",  NULL },
-        { NULL, NULL },
-      },
-      "disabled"
-    },
-    {
-      "opera_hack_timing_3",
-      "Timing Hack 3 (Dinopark Tycoon)",
-      "This must be enabled for correct operation of the game 'Dinopark Tycoon'.",
-      {
-        { "disabled", NULL },
-        { "enabled",  NULL },
-        { NULL, NULL },
-      },
-      "disabled"
-    },
-    {
-      "opera_hack_timing_5",
-      "Timing Hack 5 (Microcosm)",
-      "This must be enabled for correct operation of the game 'Microcosm'.",
-      {
-        { "disabled", NULL },
-        { "enabled",  NULL },
-        { NULL, NULL },
-      },
-      "disabled"
-    },
-    {
-      "opera_hack_timing_6",
-      "Timing Hack 6 (Alone in the Dark)",
-      "This must be enabled for correct operation of the game 'Alone in the Dark'.",
-      {
-        { "disabled", NULL },
-        { "enabled",  NULL },
-        { NULL, NULL },
-      },
-      "disabled"
-    },
-    {
-      "opera_hack_graphics_step_y",
-      "Graphics Step Y Hack (Samurai Showdown)",
-      "This must be enabled for backgrounds to render correctly when running the game 'Samurai Showdown'.",
-      {
-        { "disabled", NULL },
-        { "enabled",  NULL },
+        { "enabled", NULL },
         { NULL, NULL },
       },
       "disabled"
@@ -300,6 +670,28 @@ static struct retro_core_option_definition option_defs_us[] =
 ********************************
 */
 
+static struct retro_core_options_v2 *option_defs_intl_v2[RETRO_LANGUAGE_LAST] = {
+  &core_options_us, /* RETRO_LANGUAGE_ENGLISH */
+  NULL,             /* RETRO_LANGUAGE_JAPANESE */
+  NULL,             /* RETRO_LANGUAGE_FRENCH */
+  NULL,             /* RETRO_LANGUAGE_SPANISH */
+  NULL,             /* RETRO_LANGUAGE_GERMAN */
+  NULL,             /* RETRO_LANGUAGE_ITALIAN */
+  NULL,             /* RETRO_LANGUAGE_DUTCH */
+  NULL,             /* RETRO_LANGUAGE_PORTUGUESE_BRAZIL */
+  NULL,             /* RETRO_LANGUAGE_PORTUGUESE_PORTUGAL */
+  NULL,             /* RETRO_LANGUAGE_RUSSIAN */
+  NULL,             /* RETRO_LANGUAGE_KOREAN */
+  NULL,             /* RETRO_LANGUAGE_CHINESE_TRADITIONAL */
+  NULL,             /* RETRO_LANGUAGE_CHINESE_SIMPLIFIED */
+  NULL,             /* RETRO_LANGUAGE_ESPERANTO */
+  NULL,             /* RETRO_LANGUAGE_POLISH */
+  NULL,             /* RETRO_LANGUAGE_VIETNAMESE */
+  NULL,             /* RETRO_LANGUAGE_ARABIC */
+  NULL,             /* RETRO_LANGUAGE_GREEK */
+  NULL,             /* RETRO_LANGUAGE_TURKISH */
+};
+
 static struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
   option_defs_us, /* RETRO_LANGUAGE_ENGLISH */
   NULL,           /* RETRO_LANGUAGE_JAPANESE */
@@ -338,7 +730,7 @@ file_exists_in_system_directory(const char *filename)
   char fullpath[PATH_MAX_LENGTH];
   const char *system_path = NULL;
 
-  if (!retro_environment_cb)
+  if(!retro_environment_cb)
     return false;
 
   ret = retro_environment_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &system_path);
@@ -352,31 +744,33 @@ file_exists_in_system_directory(const char *filename)
   return path_is_valid(fullpath);
 }
 
-static void set_bios_values(struct retro_core_option_value *values)
+static
+const char *
+set_bios_values(struct retro_core_option_value *values)
 {
   size_t i                  = 0;
   const opera_bios_t *bios = NULL;
 
-  if (!values)
-    return;
+  if(!values)
+    return NULL;
 
   /* Loop through all recognised bios files */
   for(bios = opera_bios_begin(); bios != opera_bios_end(); bios++)
     {
       /* Sanity check */
-      if (i >= RETRO_NUM_CORE_OPTION_VALUES_MAX - 1)
+      if(i >= RETRO_NUM_CORE_OPTION_VALUES_MAX - 1)
         break;
 
-      if (file_exists_in_system_directory(bios->filename))
+      if(file_exists_in_system_directory(bios->filename))
         {
-          values[i].value = bios->name;
-          values[i].label = NULL;
+          values[i].value = bios->filename;
+          values[i].label = bios->name;
           i++;
         }
     }
 
   /* Handle 'no files found' condition */
-  if (i == 0)
+  if(i == 0)
     {
       values[i].value = bios_disabled_str;
       values[i].label = NULL;
@@ -386,15 +780,19 @@ static void set_bios_values(struct retro_core_option_value *values)
   /* Add proper null termination */
   values[i].value = NULL;
   values[i].label = NULL;
+
+  return values[0].value;
 }
 
-static void set_font_values(struct retro_core_option_value *values)
+static
+const char *
+set_font_values(struct retro_core_option_value *values)
 {
   size_t i = 0;
   const opera_bios_t *font = NULL;
 
-  if (!values)
-    return;
+  if(!values)
+    return NULL;
 
   /* First value is always 'disabled' */
   values[i].value = bios_disabled_str;
@@ -405,13 +803,13 @@ static void set_font_values(struct retro_core_option_value *values)
   for(font = opera_bios_font_begin(); font != opera_bios_font_end(); font++)
     {
       /* Sanity check */
-      if (i >= RETRO_NUM_CORE_OPTION_VALUES_MAX - 1)
+      if(i >= RETRO_NUM_CORE_OPTION_VALUES_MAX - 1)
         break;
 
-      if (file_exists_in_system_directory(font->filename))
+      if(file_exists_in_system_directory(font->filename))
         {
-          values[i].value = font->name;
-          values[i].label = NULL;
+          values[i].value = font->filename;
+          values[i].label = font->name;
           i++;
         }
     }
@@ -419,6 +817,8 @@ static void set_font_values(struct retro_core_option_value *values)
   /* Add proper null termination */
   values[i].value = NULL;
   values[i].label = NULL;
+
+  return values[0].value;
 }
 
 void
@@ -433,12 +833,30 @@ libretro_init_core_options(void)
       const char *key                        = option_defs_us[i].key;
       struct retro_core_option_value *values = option_defs_us[i].values;
 
-      if (key)
+      if(key)
         {
-          if (strcmp(key, "opera_bios") == 0)
-            set_bios_values(values);
-          else if (strcmp(key, "opera_font") == 0)
-            set_font_values(values);
+          if(strcmp(key, "opera_bios") == 0)
+            option_defs_us[i].default_value = set_bios_values(values);
+          else if(strcmp(key, "opera_font") == 0)
+            option_defs_us[i].default_value = set_font_values(values);
+          i++;
+        }
+      else
+        break;
+    }
+
+  i = 0;
+  while (true)
+    {
+      const char *key                        = option_defs_us_v2[i].key;
+      struct retro_core_option_value *values = option_defs_us_v2[i].values;
+
+      if(key)
+        {
+          if(strcmp(key, "opera_bios") == 0)
+            option_defs_us_v2[i].default_value = set_bios_values(values);
+          else if(strcmp(key, "opera_font") == 0)
+            option_defs_us_v2[i].default_value = set_font_values(values);
           i++;
         }
       else
@@ -451,143 +869,162 @@ libretro_set_core_options(void)
 {
   unsigned version = 0;
 
-  if (!retro_environment_cb)
+  if(!retro_environment_cb)
     return;
 
-  if (retro_environment_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 1))
+  if(retro_environment_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version))
     {
-      struct retro_core_options_intl core_options_intl;
-      unsigned language = 0;
-
-      core_options_intl.us    = option_defs_us;
-      core_options_intl.local = NULL;
-
-      if (retro_environment_cb(RETRO_ENVIRONMENT_GET_LANGUAGE, &language) &&
-          (language < RETRO_LANGUAGE_LAST) && (language != RETRO_LANGUAGE_ENGLISH))
-        core_options_intl.local = option_defs_intl[language];
-
-      retro_environment_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL, &core_options_intl);
-    }
-  else
-    {
-      size_t i;
-      size_t num_options               = 0;
-      struct retro_variable *variables = NULL;
-      char **values_buf                = NULL;
-
-      /* Determine number of options */
-      while (true)
+      if(version >= 2)
         {
-          if (option_defs_us[num_options].key)
-            num_options++;
-          else
-            break;
+          struct retro_core_options_v2_intl core_options_intl;
+          unsigned language = 0;
+
+          core_options_intl.us    = &core_options_us;
+          core_options_intl.local = NULL;
+
+          if(retro_environment_cb(RETRO_ENVIRONMENT_GET_LANGUAGE, &language) &&
+             (language < RETRO_LANGUAGE_LAST) && (language != RETRO_LANGUAGE_ENGLISH))
+            core_options_intl.local = option_defs_intl_v2[language];
+
+          retro_environment_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2_INTL, &core_options_intl);
+          return;
         }
-
-      /* Allocate arrays */
-      variables  = (struct retro_variable *)calloc(num_options + 1, sizeof(struct retro_variable));
-      values_buf = (char **)calloc(num_options, sizeof(char *));
-
-      if (!variables || !values_buf)
-        goto error;
-
-      /* Copy parameters from option_defs_us array */
-      for (i = 0; i < num_options; i++)
+      else if(version >= 1)
         {
-          const char *key                        = option_defs_us[i].key;
-          const char *desc                       = option_defs_us[i].desc;
-          const char *default_value              = option_defs_us[i].default_value;
-          struct retro_core_option_value *values = option_defs_us[i].values;
-          size_t buf_len                         = 3;
-          size_t default_index                   = 0;
+          struct retro_core_options_intl core_options_intl;
+          unsigned language = 0;
 
-          values_buf[i] = NULL;
+          core_options_intl.us    = option_defs_us;
+          core_options_intl.local = NULL;
 
-          if (desc)
-            {
-              size_t num_values = 0;
+          if(retro_environment_cb(RETRO_ENVIRONMENT_GET_LANGUAGE, &language) &&
+             (language < RETRO_LANGUAGE_LAST) && (language != RETRO_LANGUAGE_ENGLISH))
+            core_options_intl.local = option_defs_intl[language];
 
-              /* Determine number of values */
-              while (true)
-                {
-                  if (values[num_values].value)
-                    {
-                      /* Check if this is the default value */
-                      if (default_value)
-                        if (strcmp(values[num_values].value, default_value) == 0)
-                          default_index = num_values;
-
-                      buf_len += strlen(values[num_values].value);
-                      num_values++;
-                    }
-                  else
-                    break;
-                }
-
-              /* Build values string
-               * > Note: Opera is unusual in that we have to
-               *   support core options with only one value
-               *   (the number of 'opera_bios' and 'opera_font'
-               *   options depends upon the number of files
-               *   present in the user's system directory...) */
-              if (num_values > 0)
-                {
-                  size_t j;
-
-                  buf_len += num_values - 1;
-                  buf_len += strlen(desc);
-
-                  values_buf[i] = (char *)calloc(buf_len, sizeof(char));
-                  if (!values_buf[i])
-                    goto error;
-
-                  strcpy(values_buf[i], desc);
-                  strcat(values_buf[i], "; ");
-
-                  /* Default value goes first */
-                  strcat(values_buf[i], values[default_index].value);
-
-                  /* Add remaining values */
-                  for (j = 0; j < num_values; j++)
-                    {
-                      if (j != default_index)
-                        {
-                          strcat(values_buf[i], "|");
-                          strcat(values_buf[i], values[j].value);
-                        }
-                    }
-                }
-            }
-
-          variables[i].key   = key;
-          variables[i].value = values_buf[i];
-        }
-
-      /* Set variables */
-      retro_environment_cb(RETRO_ENVIRONMENT_SET_VARIABLES, variables);
-
-    error:
-
-      /* Clean up */
-      if (values_buf)
-        {
-          for (i = 0; i < num_options; i++)
-            {
-              if (values_buf[i])
-                {
-                  free(values_buf[i]);
-                  values_buf[i] = NULL;
-                }
-            }
-
-          free(values_buf);
-          values_buf = NULL;
-        }
-
-      if (variables)
-        {
-          free(variables);
-          variables = NULL;
+          retro_environment_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL, &core_options_intl);
+          return;
         }
     }
+
+  {
+    size_t i;
+    size_t num_options               = 0;
+    struct retro_variable *variables = NULL;
+    char **values_buf                = NULL;
+
+    /* Determine number of options */
+    while (true)
+      {
+        if(option_defs_us[num_options].key)
+          num_options++;
+        else
+          break;
+      }
+
+    /* Allocate arrays */
+    variables  = (struct retro_variable *)calloc(num_options + 1, sizeof(struct retro_variable));
+    values_buf = (char **)calloc(num_options, sizeof(char *));
+
+    if(!variables || !values_buf)
+      goto error;
+
+    /* Copy parameters from option_defs_us array */
+    for (i = 0; i < num_options; i++)
+      {
+        const char *key                        = option_defs_us[i].key;
+        const char *desc                       = option_defs_us[i].desc;
+        const char *default_value              = option_defs_us[i].default_value;
+        struct retro_core_option_value *values = option_defs_us[i].values;
+        size_t buf_len                         = 3;
+        size_t default_index                   = 0;
+
+        values_buf[i] = NULL;
+
+        if(desc)
+          {
+            size_t num_values = 0;
+
+            /* Determine number of values */
+            while (true)
+              {
+                if(values[num_values].value)
+                  {
+                    /* Check if this is the default value */
+                    if(default_value)
+                      if(strcmp(values[num_values].value, default_value) == 0)
+                        default_index = num_values;
+
+                    buf_len += strlen(values[num_values].value);
+                    num_values++;
+                  }
+                else
+                  break;
+              }
+
+            /* Build values string
+             * > Note: Opera is unusual in that we have to
+             *   support core options with only one value
+             *   (the number of 'opera_bios' and 'opera_font'
+             *   options depends upon the number of files
+             *   present in the user's system directory...) */
+            if(num_values > 0)
+              {
+                size_t j;
+
+                buf_len += num_values - 1;
+                buf_len += strlen(desc);
+
+                values_buf[i] = (char *)calloc(buf_len, sizeof(char));
+                if(!values_buf[i])
+                  goto error;
+
+                strcpy(values_buf[i], desc);
+                strcat(values_buf[i], "; ");
+
+                /* Default value goes first */
+                strcat(values_buf[i], values[default_index].value);
+
+                /* Add remaining values */
+                for (j = 0; j < num_values; j++)
+                  {
+                    if(j != default_index)
+                      {
+                        strcat(values_buf[i], "|");
+                        strcat(values_buf[i], values[j].value);
+                      }
+                  }
+              }
+          }
+
+        variables[i].key   = key;
+        variables[i].value = values_buf[i];
+      }
+
+    /* Set variables */
+    retro_environment_cb(RETRO_ENVIRONMENT_SET_VARIABLES, variables);
+
+  error:
+
+    /* Clean up */
+    if(values_buf)
+      {
+        for (i = 0; i < num_options; i++)
+          {
+            if(values_buf[i])
+              {
+                free(values_buf[i]);
+                values_buf[i] = NULL;
+              }
+          }
+
+        free(values_buf);
+        values_buf = NULL;
+      }
+
+    if(variables)
+      {
+        free(variables);
+        variables = NULL;
+      }
+  }
 }

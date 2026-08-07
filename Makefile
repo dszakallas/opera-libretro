@@ -49,8 +49,8 @@ unixpath = $(subst \,/,$1)
 unixcygpath = /$(subst :,,$(call unixpath,$1))
 
 ifneq (,$(findstring unix,$(platform)))
-    AR = ${CC_PREFIX}ar
-    CC = ${CC_PREFIX}gcc
+    AR ?= ${CC_PREFIX}ar
+    CC ?= ${CC_PREFIX}gcc
 
     TARGET := $(TARGET_NAME)_libretro.so
     fpic := -fPIC
@@ -199,6 +199,9 @@ ifeq ($(IOSSDK),)
    IOSSDK := $(shell xcodebuild -version -sdk appletvos Path)
 endif
    CC = cc -arch arm64 -isysroot $(IOSSDK)
+   MINVERSION = -mappletvos-version-min=11.0
+   CFLAGS += $(MINVERSION)
+   SHARED += $(MINVERSION)
 
 else ifeq ($(platform), theos_ios)
 DEPLOYMENT_IOSVERSION = 5.0
@@ -640,10 +643,30 @@ endif
 %.o: %.c
 	$(CC) -c $(OBJOUT)$@ $< $(CFLAGS)
 
-clean:
-	rm -f $(TARGET) $(OBJECTS)
+HARNESS_TARGET := opera-test-harness
+HARNESS_ZLIB_DIR := $(DEPS_DIR)/zlib-1.3.1.2
+HARNESS_ZLIB_CFLAGS := -I$(HARNESS_ZLIB_DIR)
+HARNESS_ZLIB_SOURCES := \
+	$(HARNESS_ZLIB_DIR)/adler32.c \
+	$(HARNESS_ZLIB_DIR)/crc32.c \
+	$(HARNESS_ZLIB_DIR)/deflate.c \
+	$(HARNESS_ZLIB_DIR)/trees.c \
+	$(HARNESS_ZLIB_DIR)/zutil.c
+HARNESS_ZLIB_DEPS := $(HARNESS_ZLIB_SOURCES) \
+	$(wildcard $(HARNESS_ZLIB_DIR)/*.h)
+HARNESS_CFLAGS := -O2 -g -Wall -Wextra $(HARNESS_ZLIB_CFLAGS) $(INCFLAGS)
+HARNESS_LIBS := -ldl -lm
 
-.PHONY: clean
+harness: $(HARNESS_TARGET)
+
+$(HARNESS_TARGET): tools/test_harness.c tools/stb_image_write.h $(HARNESS_ZLIB_DEPS)
+	$(CC) -o $@ tools/test_harness.c $(HARNESS_ZLIB_SOURCES) \
+		$(HARNESS_CFLAGS) $(HARNESS_LIBS)
+
+clean:
+	rm -f $(TARGET) $(OBJECTS) $(HARNESS_TARGET)
+
+.PHONY: clean harness
 endif
 
 print-%:

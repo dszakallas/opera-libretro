@@ -33,7 +33,12 @@
 #include "opera_clock.h"
 #include "opera_dsp.h"
 #include "opera_madam.h"
+#include "opera_mem.h"
+#include "opera_state.h"
 #include "opera_xbus.h"
+
+#include "boolean.h"
+#include "prng32.h"
 
 #include <string.h>
 
@@ -43,7 +48,16 @@
 #define FLABLODE     0x8
 #define RELOAD_VAL   0x10
 
-extern int fastrand(void);
+#define VINT_MASK    0x7FF
+#define HCNT_MASK    0x7FF
+#define VCNT_MASK    0x7FF
+#define VCNT_FIELD   0x800
+
+#define CSTAT_SOFT_RESET  0x10
+#define CSTAT_CLEAR_DIPIR 0x20
+#define CSTAT_DIPIR_RESET 0x40
+
+#define WDOG_RESTART      0x0B
 
 struct fifo_s
 {
@@ -78,26 +92,204 @@ int flagtime;
 int TIMER_VAL = 0; //0x415
 
 static uint32_t *MADAM_REGS;
-static clio_t    CLIO;
+static clio_t    CLIO = {0};
+static uint32_t  TIMER_CARRY = 0;
+
+static
+bool
+clio_timer_reg_addr(uint32_t addr_)
+{
+  return ((addr_ >= 0x100) && (addr_ <= 0x17C) && !(addr_ & 3));
+}
+
+static
+uint32_t
+timer_control_shift(const uint32_t timer_)
+{
+  return ((timer_ & 7) << 2);
+}
+
+static
+void
+clio_timer_regs_mask(void)
+{
+  uint32_t addr;
+
+  for(addr = 0x100; addr <= 0x17C; addr += 4)
+    CLIO.regs[addr] &= 0xFFFF;
+}
+
+static
+void
+opera_clio_set_rom()
+{
+  opera_mem_rom_select((CLIO.regs[0x84] & ADBIO_OTHERROM) ? ROM2 : ROM1);
+}
+
+uint32_t
+opera_clio_state_size_v1(void)
+{
+  return opera_state_save_size(sizeof(clio_t));
+}
+
+static
+bool
+clio_state_write_fifo(opera_state_writer_t *writer_,
+                      clio_fifo_t const    *fifo_)
+{
+  return (opera_state_write_i32(writer_,fifo_->idx) &&
+          opera_state_write_u32(writer_,fifo_->start.addr) &&
+          opera_state_write_i32(writer_,fifo_->start.len) &&
+          opera_state_write_u32(writer_,fifo_->next.addr) &&
+          opera_state_write_i32(writer_,fifo_->next.len));
+}
+
+static
+bool
+clio_state_write_payload(opera_state_writer_t *writer_,
+                         clio_t const         *state_)
+{
+  uint32_t i;
+
+  if(!opera_state_write_u32_array(writer_,state_->regs,65536) ||
+     !opera_state_write_i32(writer_,state_->dsp_word1) ||
+     !opera_state_write_i32(writer_,state_->dsp_word2) ||
+     !opera_state_write_i32(writer_,state_->dsp_address))
+    return false;
+
+  for(i = 0; i < 13; i++)
+    if(!clio_state_write_fifo(writer_,&state_->fifo_i[i]))
+      return false;
+  for(i = 0; i < 4; i++)
+    if(!clio_state_write_fifo(writer_,&state_->fifo_o[i]))
+      return false;
+
+  return (opera_state_write_i32(writer_,flagtime) &&
+          opera_state_write_i32(writer_,TIMER_VAL) &&
+          opera_state_write_u32(writer_,TIMER_CARRY));
+}
+
+static
+uint32_t
+clio_state_payload_size(void)
+{
+  opera_state_writer_t writer;
+
+  opera_state_writer_init(&writer,NULL,UINT32_MAX);
+  clio_state_write_payload(&writer,&CLIO);
+
+  return opera_state_writer_used(&writer);
+}
 
 uint32_t
 opera_clio_state_size(void)
 {
-  return sizeof(clio_t);
+  return opera_state_chunk_size(clio_state_payload_size());
 }
 
-void
+uint32_t
 opera_clio_state_save(void *buf_)
 {
-  memcpy(buf_,&CLIO,sizeof(clio_t));
+  uint32_t payload_size;
+  opera_state_writer_t writer;
+
+  payload_size = clio_state_payload_size();
+  opera_state_writer_init(&writer,buf_,opera_state_chunk_size(payload_size));
+  opera_state_write_chunk_header(&writer,"CLIO",payload_size);
+  clio_state_write_payload(&writer,&CLIO);
+
+  return opera_state_writer_ok(&writer) ? opera_state_writer_used(&writer) : 0;
 }
 
-void
-opera_clio_state_load(const void *buf_)
+uint32_t
+opera_clio_state_load_v1(const void     *buf_,
+                         uint32_t const  size_)
 {
-  TIMER_VAL = 0;
+  uint32_t rv;
 
-  memcpy(&CLIO,buf_,sizeof(clio_t));
+  rv = opera_state_load_sized(&CLIO,"CLIO",buf_,size_,sizeof(CLIO));
+  if(rv != 0)
+    {
+      TIMER_VAL = 0;
+      flagtime = 0;
+      TIMER_CARRY = 0;
+      opera_clio_set_rom();
+    }
+
+  return rv;
+}
+
+static
+bool
+clio_state_read_fifo(opera_state_reader_t *reader_,
+                     clio_fifo_t          *fifo_)
+{
+  return (opera_state_read_i32(reader_,&fifo_->idx) &&
+          opera_state_read_u32(reader_,&fifo_->start.addr) &&
+          opera_state_read_i32(reader_,&fifo_->start.len) &&
+          opera_state_read_u32(reader_,&fifo_->next.addr) &&
+          opera_state_read_i32(reader_,&fifo_->next.len));
+}
+
+static
+bool
+clio_state_read_payload(opera_state_reader_t *reader_,
+                        clio_t               *state_,
+                        int32_t              *flagtime_state_,
+                        int32_t              *timer_val_state_,
+                        uint32_t             *timer_carry_state_)
+{
+  uint32_t i;
+
+  if(!opera_state_read_u32_array(reader_,state_->regs,65536) ||
+     !opera_state_read_i32(reader_,&state_->dsp_word1) ||
+     !opera_state_read_i32(reader_,&state_->dsp_word2) ||
+     !opera_state_read_i32(reader_,&state_->dsp_address))
+    return false;
+
+  for(i = 0; i < 13; i++)
+    if(!clio_state_read_fifo(reader_,&state_->fifo_i[i]))
+      return false;
+  for(i = 0; i < 4; i++)
+    if(!clio_state_read_fifo(reader_,&state_->fifo_o[i]))
+      return false;
+
+  if(!opera_state_read_i32(reader_,flagtime_state_) ||
+     !opera_state_read_i32(reader_,timer_val_state_) ||
+     !opera_state_read_u32(reader_,timer_carry_state_))
+    return false;
+
+  return true;
+}
+
+uint32_t
+opera_clio_state_load(const void     *buf_,
+                      uint32_t const  size_)
+{
+  clio_t state;
+  int32_t flagtime_state;
+  int32_t timer_val_state;
+  uint32_t timer_carry_state;
+  opera_state_reader_t reader;
+  opera_state_reader_t payload;
+
+  opera_state_reader_init(&reader,buf_,size_);
+  if(!opera_state_read_chunk(&reader,"CLIO",&payload) ||
+     !clio_state_read_payload(&payload,
+                              &state,
+                              &flagtime_state,
+                              &timer_val_state,
+                              &timer_carry_state) ||
+     !opera_state_reader_finished(&payload))
+    return 0;
+
+  CLIO = state;
+  flagtime = flagtime_state;
+  TIMER_VAL = timer_val_state;
+  TIMER_CARRY = timer_carry_state;
+  opera_clio_set_rom();
+
+  return opera_state_reader_used(&reader);
 }
 
 #define CURADR MADAM_REGS[base+0x00]
@@ -124,13 +316,13 @@ opera_clio_timer_clear(uint32_t v204_,
 uint32_t
 opera_clio_line_vint0(void)
 {
-  return (CLIO.regs[8] & 0x7FF);
+  return (CLIO.regs[8] & VINT_MASK);
 }
 
 uint32_t
 opera_clio_line_vint1(void)
 {
-  return (CLIO.regs[12] & 0x7FF);
+  return (CLIO.regs[12] & VINT_MASK);
 }
 
 int
@@ -151,6 +343,28 @@ opera_clio_fiq_generate(uint32_t reason1_,
     CLIO.regs[0x40] |= 0x80000000;
 }
 
+/*
+  Documentation:
+  * https://github.com/trapexit/portfolio_os/blob/master/src/kernel/includes/clio.h
+
+  | Register | Description
+  |----------|------------
+  | 0x0300   | FIFO init group masks
+  |          | DMA->DSPP   = 0x00001FFF [0:12]
+  |          | AudIn->DSPP = 0x00006000 [L:R]
+  |          | DSPP->DMA   = 0x000F0000 [0:3]
+  | 0x0304   | enable DMA
+  |          | DMA to DSPP      = 0x00001FFF
+  |          | DMA to UNCLE     = 0x00002000
+  |          | DMA to EXTERNAL  = 0x00004000
+  |          | DMA to DSPP PROG = 0x00008000
+  |          | DSPP to DMA MAKS = 0x000F0000
+  |          | DMA to/from XBUS = 0x00100000
+  |          | UNCLE to DMA     = 0x20000000
+  |          | EXTERNAL to DMA  = 0x40000000
+  | 0x0308   | disable / clear DMA
+  |          | bits same as above
+ */
 static
 void
 clio_handle_dma(uint32_t val_)
@@ -177,17 +391,10 @@ clio_handle_dma(uint32_t val_)
               b1 = opera_xbus_fifo_get_data();
               b0 = opera_xbus_fifo_get_data();
 
-#ifdef MSB_FIRST
               opera_mem_write8(trg+0,b3);
               opera_mem_write8(trg+1,b2);
               opera_mem_write8(trg+2,b1);
               opera_mem_write8(trg+3,b0);
-#else
-              opera_mem_write8(trg+0,b0);
-              opera_mem_write8(trg+1,b1);
-              opera_mem_write8(trg+2,b2);
-              opera_mem_write8(trg+3,b3);
-#endif
 
               trg += 4;
               len -= 4;
@@ -204,17 +411,10 @@ clio_handle_dma(uint32_t val_)
               b1 = opera_xbus_fifo_get_data();
               b0 = opera_xbus_fifo_get_data();
 
-#ifdef MSB_FIRST
               opera_mem_write8(trg+0,b3);
               opera_mem_write8(trg+1,b2);
               opera_mem_write8(trg+2,b1);
               opera_mem_write8(trg+3,b0);
-#else
-              opera_mem_write8(trg+0,b0);
-              opera_mem_write8(trg+1,b1);
-              opera_mem_write8(trg+2,b2);
-              opera_mem_write8(trg+3,b3);
-#endif
 
               trg += 4;
               len -= 4;
@@ -230,17 +430,18 @@ clio_handle_dma(uint32_t val_)
 
 static
 void
-if_set_set_reset(uint32_t *output_,
-                 uint32_t  val_,
-                 uint32_t  mask_chk_,
-                 uint32_t  mask_set_)
+adbio_set(uint32_t *output_,
+          uint32_t  val_,
+          uint32_t  bit_)
 {
-  if((val_ & mask_chk_) == mask_chk_)
-    {
-      *output_ = ((val_ & mask_set_) ?
-                  (*output_ |  mask_set_) :
-                  (*output_ & ~mask_set_));
-    }
+  uint32_t mask;
+
+  mask = (1 << bit_);
+
+  if((val_ & mask) == 0)
+    *output_ &= ~mask;
+  else if(val_ & (mask | (mask << 4)))
+    *output_ |= mask;
 }
 
 int
@@ -337,12 +538,12 @@ opera_clio_poke(uint32_t addr_,
     }
   else if(addr_ == 0x84)
     {
-      if_set_set_reset(&CLIO.regs[0x84],val_,0x10,0x01);
-      if_set_set_reset(&CLIO.regs[0x84],val_,0x20,0x02);
-      if_set_set_reset(&CLIO.regs[0x84],val_,0x40,0x04);
-      if_set_set_reset(&CLIO.regs[0x84],val_,0x80,0x08);
+      adbio_set(&CLIO.regs[0x84],val_,0);
+      adbio_set(&CLIO.regs[0x84],val_,1);
+      adbio_set(&CLIO.regs[0x84],val_,2);
+      adbio_set(&CLIO.regs[0x84],val_,3);
 
-      opera_arm_rom_select(!!(val_ & 0x4));
+      opera_clio_set_rom();
 
       return 0;
     }
@@ -386,9 +587,11 @@ opera_clio_poke(uint32_t addr_,
 
       return 0;
     }
-  else if(addr_ == 0x304) /* DMA starter */
+  else if(addr_ == 0x304) /* DMA enable */
     {
       clio_handle_dma(val_);
+
+      /* TODO: looks hacky, needs to be investigated */
       switch(val_)
         {
         case 0x100000:
@@ -403,7 +606,7 @@ opera_clio_poke(uint32_t addr_,
         }
       return 0;
     }
-  else if(addr_ == 0x308) /* DMA stopper */
+  else if(addr_ == 0x308) /* DMA clear / disable */
     {
       CLIO.regs[0x304] &= ~val_;
       return 0;
@@ -440,8 +643,31 @@ opera_clio_poke(uint32_t addr_,
     }
   else if(addr_ == 0x28)
     {
-      CLIO.regs[addr_] = val_;
-      return (val_ == 0x30);
+      CLIO.regs[addr_] = (val_ & ~(CSTAT_SOFT_RESET | CSTAT_CLEAR_DIPIR));
+      if(val_ & CSTAT_CLEAR_DIPIR)
+        CLIO.regs[addr_] &= ~CSTAT_DIPIR_RESET;
+      return (val_ & CSTAT_SOFT_RESET);
+    }
+  else if(addr_ == 0x2C)
+    {
+      if((val_ & 0x0F) == WDOG_RESTART)
+        CLIO.regs[addr_] = WDOG_RESTART;
+      return 0;
+    }
+  else if((addr_ == 0x08) || (addr_ == 0x0C))
+    {
+      CLIO.regs[addr_] = (val_ & VINT_MASK);
+      return 0;
+    }
+  else if(addr_ == 0x30)
+    {
+      CLIO.regs[addr_] = (val_ & HCNT_MASK);
+      return 0;
+    }
+  else if(addr_ == 0x34)
+    {
+      CLIO.regs[addr_] = (val_ & (VCNT_MASK | VCNT_FIELD));
+      return 0;
     }
   else if((addr_ >= 0x1800) && (addr_ <= 0x1FFF))
     {
@@ -525,11 +751,9 @@ opera_clio_poke(uint32_t addr_,
       opera_clock_timer_set_delay(CLIO.regs[addr_]);
       return 0;
     }
-  else if(addr_ == 0x120)
+  else if(clio_timer_reg_addr(addr_))
     {
-      /* 316 or 800? */
-      CLIO.regs[addr_] = ((TIMER_VAL > 800) ?
-                          (TIMER_VAL+(val_/0x30)) : val_);
+      CLIO.regs[addr_] = (val_ & 0xFFFF);
       return 0;
     }
 
@@ -556,11 +780,15 @@ opera_clio_peek(uint32_t addr_)
         return CLIO.regs[0x68];
       return 0;
     }
+  else if(addr_ == 0x3C) // RandSample
+    return prng32();
+  else if(addr_ == 0x2C)
+    return 0;
   else if(addr_ == 0x204)
     return CLIO.regs[0x200];
   else if(addr_ == 0x20C)
     return CLIO.regs[0x208];
-  else if(addr_ == 0x308)
+  else if(addr_ == 0x308) /* Using the enable DMA register to store state */
     return CLIO.regs[0x304];
   else if (addr_ == 0x414)
     return 0x4000; /* TO CHECK!!! requested by CDROMDIPIR */
@@ -574,6 +802,12 @@ opera_clio_peek(uint32_t addr_)
     return opera_xbus_fifo_get_data();
   else if(addr_ == 0x0)
     return 0x02020000;
+  else if((addr_ == 0x08) || (addr_ == 0x0C))
+    return (CLIO.regs[addr_] & VINT_MASK);
+  else if(addr_ == 0x30)
+    return (CLIO.regs[addr_] & HCNT_MASK);
+  else if(addr_ == 0x34)
+    return (CLIO.regs[addr_] & (VCNT_MASK | VCNT_FIELD));
   else if((addr_ >= 0x3800) && (addr_ <= 0x3BFF))
     {
       /* 2DSPW per 1ARMW */
@@ -591,10 +825,12 @@ opera_clio_peek(uint32_t addr_)
       CLIO.dsp_address += 0x300;
       return opera_dsp_imem_read(CLIO.dsp_address);
     }
-  else if(addr_ == 0x17F0)
-    return fastrand();
+  else if(addr_ == 0x17F0) // DSP NOISE
+    return prng32();
   else if(addr_ == 0x17D0) /* read DSP/ARM semaphore */
     return opera_dsp_arm_semaphore_read();
+  else if(clio_timer_reg_addr(addr_))
+    return (CLIO.regs[addr_] & 0xFFFF);
 
   return CLIO.regs[addr_];
 }
@@ -603,55 +839,68 @@ void
 opera_clio_vcnt_update(int line_,
                        int field_)
 {
-  CLIO.regs[0x34] = ((field_ << 11) + line_);
+  CLIO.regs[0x34] = (((field_ << 11) & VCNT_FIELD) |
+                     ((uint32_t)line_ & VCNT_MASK));
 }
 
 static
 uint32_t
 timer_flags(const uint32_t timer_)
 {
-  return ((CLIO.regs[((timer_ < 8) ? 0x200 : 0x208)] >> ((timer_ << 2) & 0x1F)) & 0xF);
+  return ((CLIO.regs[((timer_ < 8) ? 0x200 : 0x208)] >> timer_control_shift(timer_)) & 0xF);
 }
 
 static
 void
 timer_disable(const uint32_t timer_)
 {
-  CLIO.regs[((timer_ < 8) ? 0x200 : 0x208)] &= ~(DECREMENT << ((timer_ << 2)));
+  CLIO.regs[((timer_ < 8) ? 0x200 : 0x208)] &= ~(DECREMENT << timer_control_shift(timer_));
 }
 
 void
-opera_clio_timer_execute(void)
+opera_clio_timer_execute(uint32_t timer_)
 {
   uint32_t *reg;
+  uint32_t  count;
   uint32_t  flags;
-  uint32_t  timer;
-  uint32_t  carry;
+  uint32_t  underflow;
 
-  carry = 1;
-  for(timer = 0; timer < 0x10; timer++)
+  timer_ &= 0x0F;
+  if(timer_ == 0)
+    TIMER_CARRY = 0;
+
+  underflow = 0;
+  flags = timer_flags(timer_);
+  if(flags & DECREMENT)
     {
-      flags = timer_flags(timer);
-      if(!(flags & DECREMENT))
-        continue;
-
-      reg = &CLIO.regs[(0x100 + (timer << 3))];
-      reg[0] -= ((flags & CASCADE) ? carry : 1);
-      if(reg[0] == 0xFFFFFFFF)
+      if((flags & CASCADE) && !TIMER_CARRY)
         {
-          carry = 1;
-          if(timer & 1)
-            opera_clio_fiq_generate(1<<(10-(timer>>1)),0);
+          TIMER_CARRY = 0;
+          return;
+        }
+
+      reg   = &CLIO.regs[(0x100 + (timer_ << 3))];
+      count = (reg[0] & 0xFFFF);
+      if(count == 0)
+        {
+          underflow = 1;
+          if(timer_ & 1)
+            opera_clio_fiq_generate(1<<(10-(timer_>>1)),0);
           if(flags & RELOAD)
-            reg[0] = reg[4];
+            reg[0] = (reg[4] & 0xFFFF);
           else
-            timer_disable(timer);
+            {
+              reg[0] = 0xFFFF;
+              timer_disable(timer_);
+            }
         }
       else
         {
-          carry = 0;
+          reg[0] = (count - 1);
         }
     }
+
+  TIMER_CARRY = underflow;
 }
 
 uint32_t
@@ -662,36 +911,31 @@ opera_clio_timer_get_delay(void)
 
 void opera_clio_init(int reason_)
 {
-  unsigned i;
-  for(i = 0; i < 32768; i++)
-    CLIO.regs[i] = 0;
+  memset(&CLIO,0,sizeof(CLIO));
 
   //CLIO.regs[8]=240;
 
   CLIO.regs[0x0028] = reason_;
   CLIO.regs[0x0400] = 0x80;
   CLIO.regs[0x0220] = 64;
+  opera_clock_timer_set_delay(CLIO.regs[0x220]);
   MADAM_REGS = opera_madam_registers();
   TIMER_VAL  = 0;
+  flagtime   = 0;
+  TIMER_CARRY = 0;
 }
 
 void
 opera_clio_reset(void)
 {
-  int i;
-
-  for(i = 0;i < 65536; i++)
-    CLIO.regs[i] = 0;
+  memset(&CLIO,0,sizeof(CLIO));
+  TIMER_CARRY = 0;
 }
 
 uint16_t
 opera_clio_fifo_ei_read(uint16_t channel_)
 {
-#ifdef MSB_FIRST
   return opera_mem_read16(((CLIO.fifo_i[channel_].start.addr + CLIO.fifo_i[channel_].idx)));
-#else
-  return opera_mem_read16(((CLIO.fifo_i[channel_].start.addr + CLIO.fifo_i[channel_].idx)^2));
-#endif
 }
 
 static
@@ -699,63 +943,65 @@ void
 opera_clio_fifo_eo_write(uint16_t channel_,
                          uint16_t val_)
 {
-#ifdef MSB_FIRST
   opera_mem_write16(((CLIO.fifo_o[channel_].start.addr + CLIO.fifo_o[channel_].idx)),val_);
-#else
-  opera_mem_write16(((CLIO.fifo_o[channel_].start.addr + CLIO.fifo_o[channel_].idx)^2),val_);
-#endif
+}
+
+static
+INLINE
+bool
+dma_channel_enabled(uint32_t const channel_)
+{
+  return (CLIO.regs[0x304] & (1 << channel_));
 }
 
 uint16_t
 opera_clio_fifo_ei(uint16_t channel_)
 {
-  if(CLIO.fifo_i[channel_].start.addr != 0) /* channel enabled */
-    {
-      uint32_t val_;
+  uint16_t val_;
 
-      if((CLIO.fifo_i[channel_].start.len - CLIO.fifo_i[channel_].idx) > 0)
+  if(CLIO.fifo_i[channel_].start.addr == 0)
+    return 0;
+
+  if((CLIO.fifo_i[channel_].start.len - CLIO.fifo_i[channel_].idx) > 0)
+    {
+      val_ = opera_clio_fifo_ei_read(channel_);
+      CLIO.fifo_i[channel_].idx += sizeof(uint16_t);
+    }
+  else
+    {
+      CLIO.fifo_i[channel_].idx = 0;
+      opera_clio_fiq_generate(1<<(channel_+16),0);
+
+      /* reload enabled see patent WO09410641A1, 49.16 */
+      if((CLIO.fifo_i[channel_].next.addr != 0) && dma_channel_enabled(channel_))
         {
+          CLIO.fifo_i[channel_].start.addr = CLIO.fifo_i[channel_].next.addr;
+          CLIO.fifo_i[channel_].start.len  = CLIO.fifo_i[channel_].next.len;
+
           val_ = opera_clio_fifo_ei_read(channel_);
-          CLIO.fifo_i[channel_].idx += 2;
+          CLIO.fifo_i[channel_].idx += sizeof(uint16_t);
         }
       else
         {
-          CLIO.fifo_i[channel_].idx = 0;
-          opera_clio_fiq_generate(1<<(channel_+16),0);
-
-          /* reload enabled see patent WO09410641A1, 49.16 */
-          if(CLIO.fifo_i[channel_].next.addr != 0)
-            {
-              CLIO.fifo_i[channel_].start.addr = CLIO.fifo_i[channel_].next.addr;
-              CLIO.fifo_i[channel_].start.len  = CLIO.fifo_i[channel_].next.len;
-
-              val_ = opera_clio_fifo_ei_read(channel_);
-
-              CLIO.fifo_i[channel_].idx += 2;
-            }
-          else
-            {
-              CLIO.fifo_i[channel_].start.addr = 0;
-              val_ = 0;
-            }
+          CLIO.fifo_i[channel_].start.addr = 0;
+          val_ = 0;
         }
-
-      return val_;
     }
+
+  return val_;
+
 
   // JMK SEZ: What is this? It was commented out along with this whole "else"
   //          block, but I had to bring this else block back from the dead
   //          in order to initialize val appropriately.
 
   // opera_clio_fiq_generate(1<<(channel_+16),0);
-  return 0;
 }
 
 void
 opera_clio_fifo_eo(uint16_t channel_,
                    uint16_t val_)
 {
-  /* Channel disabled? */
   if(CLIO.fifo_o[channel_].start.addr == 0)
     return;
 
@@ -770,7 +1016,7 @@ opera_clio_fifo_eo(uint16_t channel_,
       opera_clio_fiq_generate(1<<(channel_+12),0);
 
       /* reload enabled? */
-      if(CLIO.fifo_o[channel_].next.addr != 0)
+      if((CLIO.fifo_o[channel_].next.addr != 0) && dma_channel_enabled(channel_))
         {
           CLIO.fifo_o[channel_].start.addr = CLIO.fifo_o[channel_].next.addr;
           CLIO.fifo_o[channel_].start.len  = CLIO.fifo_o[channel_].next.len;
@@ -845,8 +1091,9 @@ opera_clio_fifo_write(uint32_t addr_, uint32_t val_)
           CLIO.fifo_i[(addr_>>4)&0xF].next.addr  = 0;
           break;
         case 0x04:
-          CLIO.fifo_i[(addr_>>4)&0xF].start.len = (val_ + 4);
-          if(val_ == 0)
+          if(val_ != 0)
+            CLIO.fifo_i[(addr_>>4)&0xF].start.len = (val_ + 4);
+          else
             CLIO.fifo_i[(addr_>>4)&0xF].start.len = 0;
 
           /* see patent WO09410641A1, 46.25 */

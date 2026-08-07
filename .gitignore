@@ -7,3 +7,8 @@
 /obj/
 /libs/
 *.a
+/test-harness
+/test-harness-runs/
+/opera-test-harness
+/opera-test-harness-runs/
+.vscode/pro-deployer.json

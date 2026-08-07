@@ -28,6 +28,8 @@ SOURCES_C := \
         $(CORE_DIR)/retro_cdimage.c \
 
 SOURCES_C += \
+        $(OPERA_DIR)/prng16.c \
+        $(OPERA_DIR)/prng32.c \
         $(OPERA_DIR)/opera_3do.c \
         $(OPERA_DIR)/opera_arm.c \
         $(OPERA_DIR)/opera_bios.c \
@@ -38,19 +40,21 @@ SOURCES_C += \
         $(OPERA_DIR)/opera_diag_port.c \
         $(OPERA_DIR)/opera_dsp.c \
         $(OPERA_DIR)/opera_fixedpoint_math.c \
+        $(OPERA_DIR)/opera_log.c \
         $(OPERA_DIR)/opera_madam.c \
+        $(OPERA_DIR)/opera_mem.c \
         $(OPERA_DIR)/opera_nvram.c \
         $(OPERA_DIR)/opera_pbus.c \
         $(OPERA_DIR)/opera_region.c \
         $(OPERA_DIR)/opera_sport.c \
+        $(OPERA_DIR)/opera_state.c \
         $(OPERA_DIR)/opera_vdlp.c \
         $(OPERA_DIR)/opera_xbus.c \
         $(OPERA_DIR)/opera_xbus_cdrom_plugin.c
 
 ifeq ($(HAVE_LIBNX), 1)
 	SOURCES_C += \
-		$(LIBRETRO_COMM_DIR)/streams/interface_stream.c \
-		$(LIBRETRO_COMM_DIR)/streams/chd_stream.c
+		$(LIBRETRO_COMM_DIR)/streams/interface_stream.c
 endif
 
 ifneq ($(STATIC_LINKING), 1)
@@ -86,11 +90,6 @@ SOURCES_C += \
 	$(LIBRETRO_COMM_DIR)/vfs/vfs_implementation_cdrom.c
 endif
 
-ifeq ($(HAVE_CHD), 1)
-SOURCES_C += \
-	$(LIBRETRO_COMM_DIR)/streams/chd_stream.c
-endif
-
 endif
 
 FLAGS += -DHAVE_STDINT_H -DHAVE_STDLIB_H
@@ -119,9 +118,10 @@ FLAGS += \
 INCFLAGS += \
 	-I$(DEPS_DIR)/lzma-19.00/include \
 	-I$(DEPS_DIR)/libchdr/include \
-	-I$(DEPS_DIR)/zlib-1.2.11
+	-I$(DEPS_DIR)/zlib-1.3.1.2
 
 SOURCES_C += \
+        $(LIBRETRO_COMM_DIR)/streams/chd_stream.c \
         $(DEPS_DIR)/lzma-19.00/src/Alloc.c \
         $(DEPS_DIR)/lzma-19.00/src/Bra86.c \
         $(DEPS_DIR)/lzma-19.00/src/BraIA64.c \
@@ -140,15 +140,14 @@ SOURCES_C += \
         $(DEPS_DIR)/libchdr/src/libchdr_huffman.c
 endif
 
-ifneq ($(STATIC_LINKING), 1)
-ZLIB_INCFLAGS  = -I$(DEPS_DIR)/zlib-1.2.11
+ZLIB_INCFLAGS  = -I$(DEPS_DIR)/zlib-1.3.1.2
 ZLIB_SOURCES_C = \
-	$(DEPS_DIR)/zlib-1.2.11/adler32.c \
-	$(DEPS_DIR)/zlib-1.2.11/crc32.c \
-	$(DEPS_DIR)/zlib-1.2.11/inffast.c \
-	$(DEPS_DIR)/zlib-1.2.11/inflate.c \
-	$(DEPS_DIR)/zlib-1.2.11/inftrees.c \
-	$(DEPS_DIR)/zlib-1.2.11/zutil.c
+	$(DEPS_DIR)/zlib-1.3.1.2/adler32.c \
+	$(DEPS_DIR)/zlib-1.3.1.2/crc32.c \
+	$(DEPS_DIR)/zlib-1.3.1.2/inffast.c \
+	$(DEPS_DIR)/zlib-1.3.1.2/inflate.c \
+	$(DEPS_DIR)/zlib-1.3.1.2/inftrees.c \
+	$(DEPS_DIR)/zlib-1.3.1.2/zutil.c
 
     ifeq ($(SYSTEM_ZLIB), 1)
        INCFLAGS += $(shell pkg-config --cflags zlib)
@@ -157,4 +156,3 @@ ZLIB_SOURCES_C = \
        INCFLAGS += $(ZLIB_INCFLAGS)
        SOURCES_C += $(ZLIB_SOURCES_C)
     endif
-endif
